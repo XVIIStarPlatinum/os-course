@@ -153,6 +153,7 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
+	$U/_pingpong\
 	$U/_dumptests\
 	$U/_dump2tests\
 	$U/_alloctest\

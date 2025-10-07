@@ -693,3 +693,85 @@ procdump(void)
     printf("\n");
   }
 }
+
+/**
+ * Just your run-of-the-mill dump test. 
+ * Outputs the states of registers s2-s12 involved in the current process.
+ */
+uint64
+dump(void)
+{
+  struct proc* current_process = myproc();
+  uint64 *registers = &current_process->trapframe->s2;
+  for(int i = 0; i < 10; ++i) 
+  {
+    printf("s%d = %d\n", i + 2, (uint32) registers[i]);
+  }
+  return 0;
+}
+
+/**
+ * Another normal test. When compared to the one before, 
+ * it has added functionalities of outputting more verbose information and
+ * having access to processes other than the current one.
+ */ 
+uint64
+dump2(int pid, int register_num, uint64* return_value)
+{
+  enum error_code {
+    OK = 0,
+    NO_RIGHTS = -1,
+    INVALID_PID = -2,
+    INVALID_REGISTER = -3,
+    FAILED_WRITE = -4
+  };
+
+  if(register_num > 11 || register_num < 2)
+  {
+    return INVALID_REGISTER;
+  }
+
+  struct proc* current_proc = myproc();
+  struct proc* seeked_proc;
+
+  uint64* register_state_ptr;
+  ushort pid_found = 0;
+
+  for(seeked_proc = proc; seeked_proc < &proc[NPROC]; seeked_proc++)
+  {
+    acquire(&seeked_proc->lock);
+    if(seeked_proc->pid == pid)
+    {
+      pid_found = 1;
+      break;
+    } else {
+      release(&seeked_proc->lock);
+    }
+  }
+
+  if(!pid_found)
+  {
+    return INVALID_PID;
+  }
+
+  acquire(&wait_lock);
+  if(current_proc->pid != seeked_proc->pid && current_proc->pid != seeked_proc->parent->pid)
+  {
+    release(&wait_lock);
+    release(&seeked_proc->lock);
+    return NO_RIGHTS;
+  }
+
+  register_state_ptr = &(seeked_proc->trapframe->s2) - 2 + register_num;
+
+  if(copyout(current_proc->pagetable, (uint64) return_value, (char *) register_state_ptr, sizeof(uint64) < 0))
+  {
+    release(&wait_lock);
+    release(&seeked_proc->lock);
+    return FAILED_WRITE;
+  }
+
+  release(&wait_lock);
+  release(&seeked_proc->lock);
+  return OK;
+}
