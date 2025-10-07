@@ -749,7 +749,7 @@ dump2(int pid, int register_num, uint64* return_value)
     }
   }
 
-  if(!pid_found)
+  if(!pid_found) 
   {
     return INVALID_PID;
   }
@@ -763,8 +763,7 @@ dump2(int pid, int register_num, uint64* return_value)
   }
 
   register_state_ptr = &(seeked_proc->trapframe->s2) - 2 + register_num;
-
-  if(copyout(current_proc->pagetable, (uint64) return_value, (char *) register_state_ptr, sizeof(uint64) < 0))
+  if(copyout(current_proc->pagetable, (uint64) return_value, (char *) register_state_ptr, sizeof(uint64)) < 0)
   {
     release(&wait_lock);
     release(&seeked_proc->lock);
