@@ -16,11 +16,6 @@ enum STD_STREAMS {
     STDERR = 2
 };
 
-enum ERROR_MSG {
-    PIPE = "pipe_err",
-    FORK = "fork_err"
-};
-
 int 
 main(void)
 {
@@ -31,7 +26,7 @@ main(void)
 
     if(pipe_code < 0)
     {
-        fprintf(STDERR, PIPE);
+        fprintf(STDERR, "pipe_err");
         exit(FAIL);
     }
 
@@ -76,7 +71,7 @@ main(void)
     else 
     {
         // Ошибка при форк
-        fprintf(STDERR, FORK);
+        fprintf(STDERR, "fork_err");
         exit(FAIL);
     }
 
