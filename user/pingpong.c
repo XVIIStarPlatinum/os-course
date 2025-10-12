@@ -16,6 +16,39 @@ enum STD_STREAMS {
     STDERR = 2
 };
 
+static int
+custom_read(int fd, char* buf, int count)
+{
+    int total = 0;
+    while (total < count)
+    {
+        int n = read(fd, buf + total, count - total);
+        if (n < 0) {
+            return -1;
+        }
+        if (n == 0) {
+            break;
+        }
+        total += n;
+    }
+    return total;
+}
+
+static int
+custom_write(int fd, const char* buf, int count)
+{
+    int total = 0;
+    while (total < count) 
+    {
+        int n = write(fd, buf + total, count - total);
+        if (n < 0) {
+            return -1;
+        }
+        total += n;
+    }
+    return total;
+}
+
 int 
 main(void)
 {
@@ -24,7 +57,7 @@ main(void)
 
     int pipe_code = pipe(pipe_desc);
 
-    if(pipe_code < 0)
+    if (pipe_code < 0)
     {
         fprintf(STDERR, "pipe_err");
         exit(FAIL);
@@ -32,48 +65,67 @@ main(void)
 
     pid_t pid = fork();
 
-    if(pid > 0) 
-    {
-        // Родительский процесс
-        int bytes_written = write(pipe_desc[1], FROM_CHILD_MSG, sizeof(buf));
-        if(bytes_written < sizeof(buf))
-        {
-            fprintf(STDERR, "error(pid %d): Not enough bytes were written in child process.\n", getpid());
-            exit(FAIL);
-        }
-        wait(0); // Серебряная пуля, остановка всех родительских процессов до завершения всех дочерних процессов
-        
-        int bytes_read = read(pipe_desc[0], buf, sizeof(buf));
-        if(bytes_read < sizeof(buf))
-        {
-            fprintf(STDERR, "error(pid %d): Not enough bytes were read in child process.\n", getpid());
-            exit(FAIL);
-        }
-        fprintf(STDOUT, "%s%d: got %s %s\n", REDB, getpid(), buf, CRESET);
-    } 
-    else if(pid == 0) 
-    {
-        // Дочерний процесс
-        read(pipe_desc[0], buf, sizeof(buf));
-        {
-            fprintf(STDERR, "error(pid %d): Not enough bytes were read in child process.\n", getpid());
-            exit(FAIL);
-        }
-        fprintf(STDOUT, "%s%d: got %s %s\n", GRNB, getpid(), buf, CRESET);
-
-        int bytes_written = write(pipe_desc[1], FROM_PARENT_MSG, sizeof(buf));
-        if(bytes_written < sizeof(buf))
-        {
-            fprintf(STDERR, "error(pid %d): Not enough bytes were written in child process.\n", getpid());
-            exit(FAIL);
-        }
-    } 
-    else 
-    {
-        // Ошибка при форк
-        fprintf(STDERR, "fork_err");
+    if (pid < 0) {
+        fprintf(STDERR, "fork_err\n");
         exit(FAIL);
     }
 
+    const int len_child_msg = sizeof(FROM_CHILD_MSG);
+    const int len_parent_msg = sizeof(FROM_PARENT_MSG);
+
+    if (pid > 0) 
+    {
+        // Родительский процесс
+        int bytes_written = custom_write(pipe_desc[1], FROM_CHILD_MSG, len_child_msg);
+        if (bytes_written < 0)
+        {
+            fprintf(STDERR, "error(pid %d): write failed in parent.\n", getpid());
+            exit(FAIL);
+        }
+        if (bytes_written != len_child_msg) {
+            fprintf(STDERR, "warning(pid %d): parent wrote %d bytes (expected: %d).\n",
+                getpid(), bytes_written, len_child_msg);
+        }
+        wait(0); // Остановка всех родительских процессов до завершения всех дочерних процессов
+        
+        int bytes_read = custom_read(pipe_desc[0], buf, len_parent_msg);
+        if (bytes_read < 0)
+        {
+            fprintf(STDERR, "error(pid %d): read failed in parent.\n", getpid());
+            exit(FAIL);
+        }
+        if (bytes_read < len_parent_msg)
+        {
+            fprintf(STDERR, "warning(pid %d): parent expected %d bytes but got %d. Possible EOF.\n",
+                getpid(), len_parent_msg, bytes_read);
+        }
+        fprintf(STDOUT, "%s%d: got %s %s\n", REDB, getpid(), buf, CRESET);
+    } 
+    else
+    {
+        // Дочерний процесс
+        int bytes_read = custom_read(pipe_desc[0], buf, len_child_msg);
+        if (bytes_read < 0) {
+            fprintf(STDERR, "error(pid %d): read failed in child.\n", getpid());
+            exit(FAIL);
+        }
+        if (bytes_read < len_child_msg) {
+            fprintf(STDERR, "error(pid %d): child expected %d bytes but got %d (EOF?).\n",
+                    getpid(), len_child_msg, bytes_read);
+            exit(FAIL);
+        }
+
+        fprintf(STDOUT, "%s%d: got %s %s\n", GRNB, getpid(), buf, CRESET);
+
+        int written = custom_write(pipe_desc[1], FROM_PARENT_MSG, len_parent_msg);
+        if (written < 0) {
+            fprintf(STDERR, "error(pid %d): write failed in child.\n", getpid());
+            exit(FAIL);
+        }
+        if (written != len_parent_msg) {
+            fprintf(STDERR, "warning(pid %d): child wrote %d bytes (expected %d).\n",
+                    getpid(), written, len_parent_msg);
+        }
+    }
     exit(NORMAL);
 }
