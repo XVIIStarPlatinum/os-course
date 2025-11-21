@@ -26,6 +26,7 @@ int sleep(int);
 int uptime(void);
 uint64 dump();
 uint64 dump2(int pid, int register_num, uint64* return_value);
+int symlink(char*, char*);
 
 // ulib.c
 int stat(const char*, struct stat*);
