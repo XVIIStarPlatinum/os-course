@@ -530,7 +530,7 @@ sys_pipe(void)
   return 0;
 }
 
-// Create the path new as a link to the same inode as old.
+// Create a new link which becomes invalid on deletion of the source file.
 uint64
 sys_symlink(void) {
   char target[MAXPATH], path[MAXARG];
