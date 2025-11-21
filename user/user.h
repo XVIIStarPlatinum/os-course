@@ -1,5 +1,7 @@
 struct stat;
 
+typedef int pid_t;
+
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
@@ -22,6 +24,8 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
+uint64 dump();
+uint64 dump2(int pid, int register_num, uint64* return_value);
 
 // ulib.c
 int stat(const char*, struct stat*);
