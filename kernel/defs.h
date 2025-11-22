@@ -205,3 +205,4 @@ int            lst_empty(struct list*);
 void           bd_init(void*,void*);
 void           bd_free(void*);
 void           *bd_malloc(uint64);
+void           bd_print_init_info(void);
