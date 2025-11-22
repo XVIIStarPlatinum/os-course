@@ -706,38 +706,44 @@ dump2(int pid, int register_num, uint64* return_value)
     FAILED_WRITE = -4
   };
 
-  if(register_num > 11 || register_num < 2)
-  {
+  if(register_num < 2 || register_num > 11) {
     return INVALID_REGISTER;
   }
 
-  struct proc* current_proc = myproc();
-  struct proc* target_proc = 0;
+  struct proc *current_proc = myproc();
+  struct proc *target_proc = 0;
 
-  for(struct proc* seeked_proc = dummyhead.next; seeked_proc != &dummyhead; seeked_proc = seeked_proc->next)
-  {
-    if(seeked_proc->pid == pid)
-    {
-      target_proc = seeked_proc;
+  acquire(&lst_lock);
+
+  // Find the target process
+  for(struct proc *p = dummyhead.next; p != &dummyhead; p = p->next) {
+    if(p->pid == pid) {
+      target_proc = p;
       break;
     }
   }
 
-  if(!target_proc) 
-  {
+  if(!target_proc) {
+    release(&lst_lock);
     return INVALID_PID;
   }
 
-  if(!(current_proc->pid == target_proc->pid || current_proc->pid == target_proc->parent->pid))
-  {
+  // Check permissions: current process can access itself or its children
+  if(current_proc->pid != target_proc->pid && 
+     current_proc->pid != target_proc->parent->pid) {
+    release(&lst_lock);
     return NO_RIGHTS;
   }
 
-  uint64* register_state_ptr = &(target_proc->trapframe->s2) + (register_num - 2);
-  if(copyout(current_proc->pagetable, (uint64) return_value, (char *) register_state_ptr, sizeof(uint64)) < 0)
-  {
+  uint64 *register_ptr = (uint64*)((char*)target_proc->trapframe + 
+                         offsetof(struct trapframe, s2) + 
+                         (register_num - 2) * sizeof(uint64));
+  if(copyout(current_proc->pagetable, (uint64) return_value, 
+             (char*)register_ptr, sizeof(uint64)) < 0) {
+    release(&lst_lock);
     return FAILED_WRITE;
   }
 
+  release(&lst_lock);
   return OK;
 }
