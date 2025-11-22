@@ -28,9 +28,8 @@ fileinit(void)
 struct file*
 filealloc(void)
 {
-  struct file *f = (struct file*) bd_malloc(sizeof(struct file));
-  if (f) 
-  {
+  struct file *f = (struct file*)bd_malloc(sizeof(struct file));
+  if (f) {
     f->ref = 1;
   }
   return f;
@@ -60,7 +59,7 @@ fileclose(struct file *f)
     return;
   }
   release(&ftable.lock);
-  
+
   if(f->type == FD_PIPE){
     pipeclose(f->pipe, f->writable);
   } else if(f->type == FD_INODE || f->type == FD_DEVICE){
@@ -68,7 +67,6 @@ fileclose(struct file *f)
     iput(f->ip);
     end_op();
   }
-
   bd_free(f);
 }
 
@@ -169,4 +167,3 @@ filewrite(struct file *f, uint64 addr, int n)
 
   return ret;
 }
-

@@ -51,7 +51,7 @@ void bit_set(char *array, int index) {
   array[index / 8] = (b | m);
 }
 
-// Invert bit in order to optimize space used for buddy allocator usage marker bit
+// Inverse bit at position index in array
 void bit_inverse(char *array, int index) {
   array[index / 8] ^= (1 << (index % 8));
 }
@@ -109,14 +109,14 @@ int firstk(uint64 n) {
 
 // Compute the block index for address p at size k
 int blk_index(int k, char *p) {
-  int n = p - (char *)bd_base;
+  int n = p - (char *) bd_base;
   return n / BLK_SIZE(k);
 }
 
 // Convert a block index at size k back into an address
 void *addr(int k, int bi) {
   int n = bi * BLK_SIZE(k);
-  return (char *)bd_base + n;
+  return (char *) bd_base + n;
 }
 
 // allocate nbytes, but malloc won't return anything smaller than LEAF_SIZE
@@ -171,7 +171,7 @@ void bd_free(void *p) {
   for (k = size(p); k < MAXSIZE; k++) {
     int bi = blk_index(k, p);
     int buddy = (bi % 2 == 0) ? bi + 1 : bi - 1;
-    bit_inverse(bd_sizes[k].alloc, bi / 2);           // free p at size k
+    bit_inverse(bd_sizes[k].alloc, bi / 2);       // free p at size k
     if (bit_isset(bd_sizes[k].alloc, bi / 2)) {  // is buddy allocated?
       break;                                    // break out of loop
     }
@@ -191,8 +191,8 @@ void bd_free(void *p) {
 
 // Compute the first block at size k that doesn't contain p
 int blk_index_next(int k, char *p) {
-  int n = (p - (char *)bd_base) / BLK_SIZE(k);
-  if ((p - (char *)bd_base) % BLK_SIZE(k) != 0) n++;
+  int n = (p - (char *) bd_base) / BLK_SIZE(k);
+  if ((p - (char *) bd_base) % BLK_SIZE(k) != 0) n++;
   return n;
 }
 
@@ -209,7 +209,7 @@ int _log2(uint64 n) {
 void bd_mark(void *start, void *stop) {
   int bi, bj;
 
-  if (((uint64)start % LEAF_SIZE != 0) || ((uint64)stop % LEAF_SIZE != 0))
+  if (((uint64) start % LEAF_SIZE != 0) || ((uint64) stop % LEAF_SIZE != 0))
     panic("bd_mark");
 
   for (int k = 0; k < nsizes; k++) {
@@ -235,27 +235,28 @@ int bd_initfree(void *bd_left, void *bd_right) {
   for (int k = 0; k < MAXSIZE; k++) {  // skip max size
     int left = blk_index_next(k, bd_left);
     int right = blk_index(k, bd_right);
-    
-    if (bit_isset(bd_sizes[k].alloc, left / 2)) 
-    {
+
+    if (bit_isset(bd_sizes[k].alloc, left / 2)) {
       if (left % 2 == 0) left++;
       lst_push(&bd_sizes[k].free, addr(k, left));
       free += BLK_SIZE(k);
     }
+
     if (right <= left) continue;
-    if (bit_isset(bd_sizes[k].alloc, right / 2))
-    {
+
+    if (bit_isset(bd_sizes[k].alloc, right / 2)) {
       if (right % 2 == 1) right--;
       lst_push(&bd_sizes[k].free, addr(k, right));
       free += BLK_SIZE(k);
     }
   }
+
   return free;
 }
 
 // Mark the range [bd_base,p) as allocated
 int bd_mark_data_structures(char *p) {
-  int meta = p - (char *)bd_base;
+  int meta = p - (char *) bd_base;
   printf("bd: %d meta bytes for managing %ld bytes of memory\n", meta,
          BLK_SIZE(MAXSIZE));
   bd_mark(bd_base, p);
@@ -275,23 +276,23 @@ int bd_mark_unavailable(void *end, void *left) {
 
 // Initialize the buddy allocator: it manages memory from [base, end).
 void bd_init(void *base, void *end) {
-  char *p = (char *)ROUNDUP((uint64)base, LEAF_SIZE);
+  char *p = (char *) ROUNDUP((uint64) base, LEAF_SIZE);
   int sz;
 
   initlock(&lock, "buddy");
-  bd_base = (void *)p;
+  bd_base = (void *) p;
 
   // compute the number of sizes we need to manage [base, end)
-  nsizes = _log2(((char *)end - p) / LEAF_SIZE) + 1;
-  if ((char *)end - p > BLK_SIZE(MAXSIZE)) {
+  nsizes = _log2(((char *) end - p) / LEAF_SIZE) + 1;
+  if ((char *) end - p > BLK_SIZE(MAXSIZE)) {
     nsizes++;  // round up to the next power of 2
   }
 
   printf("bd: memory sz is %ld bytes; allocate an size array of length %d\n",
-         (char *)end - p, nsizes);
+        (char *) end - p, nsizes);
 
   // allocate bd_sizes array
-  bd_sizes = (Sz_info *)p;
+  bd_sizes = (Sz_info *) p;
   p += sizeof(Sz_info) * nsizes;
   memset(bd_sizes, 0, sizeof(Sz_info) * nsizes);
 
@@ -312,7 +313,7 @@ void bd_init(void *base, void *end) {
     memset(bd_sizes[k].split, 0, sz);
     p += sz;
   }
-  p = (char *)ROUNDUP((uint64)p, LEAF_SIZE);
+  p = (char *) ROUNDUP((uint64) p, LEAF_SIZE);
 
   // done allocating; mark the memory range [base, p) as allocated, so
   // that buddy will not hand out that memory.
