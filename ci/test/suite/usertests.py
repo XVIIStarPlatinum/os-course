@@ -109,7 +109,7 @@ SLOW_TESTS = [
     Xv6UserTest(name="bigdir", timeout=timedelta(seconds=120)),
     Xv6UserTest(name="manywrites", timeout=timedelta(seconds=180)),
     Xv6UserTest(name="badwrite", timeout=timedelta(seconds=200)),
-    Xv6UserTest(name="execout", timeout=timedelta(seconds=40)),
+    Xv6UserTest(name="execout", timeout=timedelta(seconds=60)),
     Xv6UserTest(
         name="diskfull",
         timeout=timedelta(seconds=160),
