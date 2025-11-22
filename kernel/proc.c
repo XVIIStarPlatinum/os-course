@@ -28,6 +28,7 @@ extern char trampoline[]; // trampoline.S
 // must be acquired before any p->lock.
 struct spinlock wait_lock;
 
+volatile int proc_count = 0;
 // initialize the proc table.
 void
 procinit(void)
@@ -94,7 +95,8 @@ static struct proc*
 allocproc(void)
 {
   struct proc* p;
-
+  if (__atomic_load_n(&proc_count, __ATOMIC_RELAXED) >= NPROC)
+    return 0;
   acquire(&lst_lock);
 
   if (!(p = bd_malloc(sizeof(struct proc)))) {
@@ -138,6 +140,7 @@ allocproc(void)
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  __atomic_fetch_add(&proc_count, 1, __ATOMIC_RELAXED);
   return p;
 }
 
@@ -159,6 +162,7 @@ freeproc(struct proc *p)
   p->prev->next = p->next;
   p->next->prev = p->prev;
   bd_free((void*)p);
+  __atomic_fetch_sub(&proc_count, 1, __ATOMIC_RELAXED);
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -648,7 +652,6 @@ procdump(void)
   };
   struct proc *p;
   char *state;
-  int proc_count = 0;
 
   printf("\n");
   for (p = dummyhead.next; p != &dummyhead; p = p->next) {
@@ -661,9 +664,7 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
     p = p->next;
-    proc_count++;
   }
-  printf("Total processes: %d\n", proc_count);
 }
 
 /**

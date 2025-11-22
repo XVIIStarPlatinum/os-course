@@ -15,8 +15,7 @@ extern char end[]; // first address after kernel.
 void
 kinit()
 {
-  char *p = (char *)PGROUNDUP((uint64)end);
-  bd_init(p, (char *) PHYSTOP);
+  bd_init((char *) PGROUNDUP((uint64)end), (char *) PHYSTOP);
 } 
 
 // Free the page of physical memory pointed at by pa,

@@ -122,9 +122,11 @@ void *addr(int k, int bi) {
 // allocate nbytes, but malloc won't return anything smaller than LEAF_SIZE
 void *bd_malloc(uint64 nbytes) {
   int fk, k;
-
   acquire(&lock);
-
+  if (nbytes > BLK_SIZE(MAXSIZE)) {
+    release(&lock);
+    return 0;  // Request too large
+  }
   // Find a free block >= nbytes, starting with smallest k possible
   fk = firstk(nbytes);
   for (k = fk; k < nsizes; k++) {
@@ -136,7 +138,14 @@ void *bd_malloc(uint64 nbytes) {
   }
 
   // Found a block; pop it and potentially split it.
-  char *p = lst_pop(&bd_sizes[k].free);
+  void *p = lst_pop(&bd_sizes[k].free);
+  if (p < bd_base || (uint64)p + nbytes > (uint64) bd_base + BLK_SIZE(MAXSIZE)) {
+    // This block is outside our managed range!
+    lst_push(&bd_sizes[k].free, p);  // Put it back
+    release(&lock);
+    return 0;
+  }
+
   bit_inverse(bd_sizes[k].alloc, blk_index(k, p) / 2);
   for (; k > fk; k--) {
     // split a block at size k and mark one half allocated at size k-1
@@ -275,10 +284,10 @@ int bd_mark_unavailable(void *end, void *left) {
 }
 
 // Initialize the buddy allocator: it manages memory from [base, end).
-void bd_init(void *base, void *end) {
+void bd_init(void *base, void *end) {  
   char *p = (char *) ROUNDUP((uint64) base, LEAF_SIZE);
   int sz;
-
+  
   initlock(&lock, "buddy");
   bd_base = (void *) p;
 

@@ -1980,7 +1980,7 @@ forktest(char *s)
 
   if(n == N){
     printf("%s: fork claimed to work 1000 times!\n", s);
-    exit(0);
+    exit(1);
   }
 
   for(; n > 0; n--){
