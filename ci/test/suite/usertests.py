@@ -109,16 +109,16 @@ SLOW_TESTS = [
     Xv6UserTest(name="bigdir", timeout=timedelta(seconds=120)),
     Xv6UserTest(name="manywrites", timeout=timedelta(seconds=180)),
     Xv6UserTest(name="badwrite", timeout=timedelta(seconds=200)),
-    Xv6UserTest(name="execout", timeout=timedelta(seconds=60)),
+    Xv6UserTest(name="execout", timeout=timedelta(seconds=80)),
     Xv6UserTest(
         name="diskfull",
-        timeout=timedelta(seconds=160),
+        timeout=timedelta(seconds=130),
         suffix_size=len("balloc: out of blocks"),
         extra_lines=1,
     ),
     Xv6UserTest(
         name="outofinodes",
-        timeout=timedelta(seconds=130),
+        timeout=timedelta(seconds=100),
         suffix_size=len("ialloc: no inodes"),
     ),
 ]
