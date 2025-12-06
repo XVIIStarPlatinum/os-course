@@ -7,6 +7,9 @@
 #include "fs.h"
 #include "spinlock.h"
 #include "proc.h"
+
+#define repeat(n, fn) do { for(int i = 0; i < n; i++) fn; } while(0);
+
 /*
  * the kernel's page table.
  */
@@ -434,4 +437,30 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+static void
+vmprint_impl(pagetable_t pagetable, int depth)
+{
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if(pte & PTE_V){
+      repeat(depth, printf(".. "));
+      printf("%d: pte %p pa %p\n", i, (void*)pte, (void*)PTE2PA(pte));
+    }
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+      vmprint_impl((pagetable_t)PTE2PA(pte), depth + 1);
+    } else if(pte & PTE_V){
+      if (depth != 3) {
+        panic("vmprint: leaf");
+      }
+    }
+  }
+}
+
+void
+vmprint(pagetable_t pagetable)
+{
+  printf("page table: %p\n", pagetable);
+  vmprint_impl(pagetable, 1);
 }
