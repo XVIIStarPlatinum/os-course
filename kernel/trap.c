@@ -59,7 +59,7 @@ usertrap(void)
   struct proc *p = myproc();
   
   // save user program counter.
-  p->trapframe->epc = r_sepc();
+  p->trapframe->epc = sepc;
   
   if(scause == 8){
     // system call
@@ -79,10 +79,14 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else if (scause == LOAD_PAGE_FAULT) {
-    kill_process(p, "Load page fault", scause, stval, sepc);
+    if(uvmlazyalloc(p->pagetable, stval)) {
+      kill_process(p, "Load page fault", scause, stval, sepc);
+    }
   } else if (scause == AMO_PAGE_FAULT) {
-    if(uvmcow(p->pagetable, r_stval()) != 0) {
-      kill_process(p, "Store/AMO page fault", scause, stval, sepc);
+    if(uvmlazyalloc(p->pagetable, stval)) {
+      if(uvmcow(p->pagetable, stval)) {
+        kill_process(p, "Store/AMO page fault", scause, stval, sepc);
+      }
     }
   } else {
     kill_process(p, "unexpected", scause, stval, sepc);

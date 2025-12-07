@@ -183,6 +183,7 @@ int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 void            vmprint(pagetable_t pagetable);
 int             uvmcow(pagetable_t, uint64);
+int             uvmlazyalloc(pagetable_t pagetable, uint64 va);
 
 // plic.c
 void            plicinit(void);
