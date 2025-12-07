@@ -124,6 +124,9 @@ walkaddr(pagetable_t pagetable, uint64 va)
       return 0;
     if (uvmlazyalloc(pagetable, va) < 0)
       return 0;
+    pte = walk(pagetable, va, 0);
+    if(pte == 0)
+      return 0;
   }
   if((*pte & PTE_U) == 0)
     return 0;
@@ -577,6 +580,6 @@ uvmlazyalloc(pagetable_t pagetable, uint64 va)
 
   memset(mem, 0, PGSIZE);
   *pte = (PA2PTE(mem) | (flags & ~PTE_M) | PTE_V);
-  sfence_vma();
+
   return 0;
 }
