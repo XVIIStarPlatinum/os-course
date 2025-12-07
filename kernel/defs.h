@@ -64,6 +64,7 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+void            freerange(void *pa_start, void *pa_end);
 void            kincref(void *);
 void            kdecref(void *);
 uint            kgetrefs(void *);
