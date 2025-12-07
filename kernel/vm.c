@@ -194,9 +194,9 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
     if(!(pte = walk(pagetable, a, 0)))
-      panic("uvmunmap: walk");
+      continue;
     if(!(*pte & (PTE_V | PTE_M)))
-      panic("uvmunmap: not mapped");
+      continue;
     if((*pte & PTE_M)) {
       if((*pte & PTE_V))
         panic("uvmunmap: cant be mapped and valid");
@@ -402,12 +402,18 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
       if (uvmlazyalloc(pagetable, PGROUNDDOWN(va0)))
         return -1;
+      pte = walk(pagetable, va0, 0);
+      if(pte == 0)
+        return -1;
     }
 
     if ((*pte & PTE_W) == 0) {
       if (uvmcow(pagetable, va0) != 0) {
         return -1;
       }
+      pte = walk(pagetable, va0, 0);
+      if(pte == 0)
+        return -1;
     }
 
     pa0 = walkaddr(pagetable, va0);
@@ -533,8 +539,9 @@ uvmcow(pagetable_t pagetable, uint64 va)
     return -1;
 
   uint64 pa = PTE2PA(*pte);
-  if(kgetrefs((void*)pa)) {
+  if(kgetrefs((void*)pa) == 1) {
     *pte |= PTE_W;
+    *pte &= ~PTE_L;
     return 0;
   }
 
@@ -543,6 +550,7 @@ uvmcow(pagetable_t pagetable, uint64 va)
     return -1;
   memmove(mem, (char*)pa, PGSIZE);
   *pte = PA2PTE(mem) | PTE_FLAGS(*pte) | PTE_W;
+  *pte &= ~PTE_L;
   kdecref((void*)pa);
   return 0;
 }
@@ -551,13 +559,16 @@ uvmcow(pagetable_t pagetable, uint64 va)
 int
 uvmlazyalloc(pagetable_t pagetable, uint64 va)
 {
+  uint64 page = PGROUNDDOWN(va);
   pte_t *pte;
+  uint flags;
 
-  if(va >= MAXVA)
+  if(page >= MAXVA)
     return -1;
   if((pte = walk(pagetable, va, 0)) == 0)
     return -1;
-  if((*pte & PTE_V) != 0 || (*pte & PTE_M) == 0)
+  flags = PTE_FLAGS(*pte);
+  if((*pte & PTE_V) != 0 || (flags & PTE_M) == 0)
     return -1;
 
   char *mem = kalloc();
@@ -565,6 +576,7 @@ uvmlazyalloc(pagetable_t pagetable, uint64 va)
     return -1;
 
   memset(mem, 0, PGSIZE);
-  *pte = (PA2PTE(mem) | PTE_FLAGS(*pte) | PTE_V) & ~PTE_M;
+  *pte = (PA2PTE(mem) | (flags & ~PTE_M) | PTE_V);
+  sfence_vma();
   return 0;
 }

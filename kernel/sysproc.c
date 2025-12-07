@@ -46,9 +46,13 @@ sys_sbrk(void)
   addr = p->sz;
 
   if (n > 0) {
-      p->sz += n;
-  } else {
-      p->sz = uvmdealloc(p->pagetable, addr, addr + n);
+    uint64 newsz;
+    if((newsz = uvmalloc(p->pagetable, addr, addr + n, PTE_W)) == 0) {
+      return -1;
+    }
+    p->sz = newsz;
+  } else if(n < 0) {
+    p->sz = uvmdealloc(p->pagetable, addr, addr + n);
   }
 
   return addr;
