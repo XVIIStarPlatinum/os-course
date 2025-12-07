@@ -278,6 +278,7 @@ LAZYTESTS = SimpleSuite(
             name = test_name,
             timeout = timedelta(seconds = 60),
             patterns = [
+                f"sbrk() failed",
                 f"running test {test_name}",
                 f"test {test_name}: OK",
             ],
