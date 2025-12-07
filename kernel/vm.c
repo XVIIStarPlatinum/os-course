@@ -47,6 +47,9 @@ kvmmake(void)
   // the highest virtual address in the kernel.
   kvmmap(kpgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 
+  // allocate and map a kernel stack for each process.
+  proc_mapstacks(kpgtbl);
+
   return kpgtbl;
 }
 
@@ -163,7 +166,7 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
       return -1;
     if(*pte & PTE_V)
       panic("mappages: remap");
-    *pte = PA2PTE(pa) | perm | PTE_V;
+    *pte = (PA2PTE(pa) | perm | PTE_V) & ~PTE_L;
     if(a == last)
       break;
     a += PGSIZE;
@@ -313,22 +316,32 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 int
 uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
-  pte_t *pte, *pte_new;
-  uint64 i;
+  pte_t *pte;
+  pte_t *new_pte;
+  uint64 i, pa;
 
   for(i = 0; i < sz; i += PGSIZE){
-    if((pte = walk(old, i, 0)) == 0)
+    if(!(pte = walk(old, i, 0)))
       panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
+    if(!(*pte & PTE_V))
       panic("uvmcopy: page not present");
-    if ((pte_new = walk(new, i, 1)) == 0)
-      panic("uvmcopy: pte copy failed");
-    *pte_new = *pte;
-    *pte_new &= ~PTE_W;
+
+    if (*pte & PTE_W) {
+      *pte |= PTE_L;
+    }
+    *pte &= ~PTE_W;
+
+    pa = PTE2PA(*pte);
+    kincref((void*)pa);
+    if (!(new_pte = walk(new, i, 1))) {
+      uvmunmap(new, 0, i / PGSIZE, 1);
+      return -1;
+    }
+
+    *new_pte = *pte;
   }
   return 0;
 }
-
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
 void
@@ -356,9 +369,13 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     if(va0 >= MAXVA)
       return -1;
     pte = walk(pagetable, va0, 0);
-    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 ||
-       (*pte & PTE_W) == 0)
+    if(!(pte && (*pte & PTE_V) && (*pte & PTE_U)))
       return -1;
+    if (!(*pte & PTE_W)) {
+      if (uvmcow(pagetable, va0)) {
+        return -1;
+      }
+    }
     pa0 = PTE2PA(*pte);
     n = PGSIZE - (dstva - va0);
     if(n > len)
@@ -449,7 +466,7 @@ vmprint_impl(pagetable_t pagetable, int depth)
       repeat(depth, printf(".. "));
       printf("%d: pte %p pa %p\n", i, (void*)pte, (void*)PTE2PA(pte));
     }
-    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){
+    if((pte & PTE_V) && !(pte & (PTE_R|PTE_W|PTE_X))){
       vmprint_impl((pagetable_t)PTE2PA(pte), depth + 1);
     } else if(pte & PTE_V){
       if (depth != 3) {
@@ -464,4 +481,35 @@ vmprint(pagetable_t pagetable)
 {
   printf("page table: %p\n", pagetable);
   vmprint_impl(pagetable, 1);
+}
+
+int
+uvmcow(pagetable_t pagetable, uint64 va)
+{
+  pte_t *pte;
+  va = PGROUNDDOWN(va);
+
+  if(va >= MAXVA) {
+    return -1;
+  }
+  if(!(pte = walk(pagetable, va, 1)))
+    return -1;
+  if(!((*pte & PTE_V) && (*pte & PTE_L)))
+    return -1;
+
+  uint64 pa = PTE2PA(*pte);
+  if(kgetrefs((void*)pa) == 1) {
+    *pte |= PTE_W;
+    return 0;
+  }
+
+  char *mem = kalloc();
+  if(mem == 0)
+    return -1;
+
+  memmove(mem, (char*)pa, PGSIZE);
+  *pte = PA2PTE(mem) | PTE_FLAGS(*pte) | PTE_W;
+
+  kdecref((void*)pa);
+  return 0;
 }
