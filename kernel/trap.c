@@ -79,14 +79,20 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else if (scause == LOAD_PAGE_FAULT) {
-    if(stval >= p->sz || uvmlazyalloc(p->pagetable, stval)) {
+    if(stval >= p->sz) {
       kill_process(p, "Load page fault", scause, stval, sepc);
+    } else {
+      if(uvmlazyalloc(p->pagetable, stval)) {
+        kill_process(p, "Load page fault", scause, stval, sepc);
+      }
     }
   } else if (scause == AMO_PAGE_FAULT) {
     if(stval >= p->sz){
       kill_process(p, "Store/AMO page fault", scause, stval, sepc);
     } else {
-      if(uvmcow(p->pagetable, stval)) {
+      // First try COW, then lazy allocation
+      if(uvmcow(p->pagetable, stval) != 0) {
+        // Not a COW page, try lazy allocation
         if(uvmlazyalloc(p->pagetable, stval)) {
           kill_process(p, "Store/AMO page fault", scause, stval, sepc);
         }
@@ -238,4 +244,3 @@ devintr()
     return 0;
   }
 }
-

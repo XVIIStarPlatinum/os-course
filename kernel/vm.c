@@ -116,7 +116,7 @@ walkaddr(pagetable_t pagetable, uint64 va)
   if(va >= MAXVA)
     return 0;
 
-  pte = walk(pagetable, va, 0);
+  pte = walk(pagetable, va, 1);
   if(pte == 0)
     return 0;
   if((*pte & PTE_V) == 0) {
@@ -125,7 +125,7 @@ walkaddr(pagetable_t pagetable, uint64 va)
     if (uvmlazyalloc(pagetable, va) < 0)
       return 0;
     pte = walk(pagetable, va, 0);
-    if(pte == 0)
+    if(pte == 0 || (*pte & PTE_V) == 0)
       return 0;
   }
   if((*pte & PTE_U) == 0)
@@ -273,8 +273,13 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
     if (*pte & (PTE_V | PTE_M)) {
       panic("uvmalloc: remap");
     }
-    *pte = 0;
-    *pte |= (PTE_R|PTE_U|xperm|PTE_M) & ~PTE_V;
+    char *mem = kalloc();
+    if(mem == 0) {
+      uvmdealloc(pagetable, a, oldsz);
+      return 0;
+    }
+    memset(mem, 0, PGSIZE);
+    *pte = PA2PTE(mem) | PTE_R | PTE_U | xperm | PTE_V;
   }
   return newsz;
 }
@@ -568,8 +573,12 @@ uvmlazyalloc(pagetable_t pagetable, uint64 va)
 
   if(page >= MAXVA)
     return -1;
-  if((pte = walk(pagetable, va, 0)) == 0)
+  if((pte = walk(pagetable, va, 1)) == 0)
     return -1;
+  
+  if(*pte == 0)
+    return -1;
+    
   flags = PTE_FLAGS(*pte);
   if((*pte & PTE_V) != 0 || (flags & PTE_M) == 0)
     return -1;
@@ -580,6 +589,6 @@ uvmlazyalloc(pagetable_t pagetable, uint64 va)
 
   memset(mem, 0, PGSIZE);
   *pte = (PA2PTE(mem) | (flags & ~PTE_M) | PTE_V);
-
+  sfence_vma();
   return 0;
 }
