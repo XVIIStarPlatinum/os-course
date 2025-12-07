@@ -1,4 +1,3 @@
-import re
 from timeout import TimeBudget
 from suite.core import TestSuite, expect
 from test import Test, assert_eq, assert_matches
@@ -23,28 +22,7 @@ class SimpleSuite(TestSuite):
 
     def expect(self, stream: RWStream):
         self._expect(stream, self.prologue)
-        for test in self.tests:
-            line = stream.readline()
-            assert_matches(line, test.patterns[0])
-
-            ok_pattern = test.patterns[-1]
-            middle_patterns = test.patterns[1:-1]
-
-            while True:
-                line = stream.readline()
-                if re.search(ok_pattern, line):
-                    break
-
-                matched_middle = False
-                for p in middle_patterns:
-                    if re.search(p, line):
-                        matched_middle = True
-                        break
-
-                if matched_middle:
-                    continue
-
-                assert_matches(line, ok_pattern)
+        expect(stream, self.tests)
         self._expect(stream, self.epilogue)
 
     def _expect(self, stream: RWStream, patterns: list[str]):
