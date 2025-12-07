@@ -270,6 +270,8 @@ COWTEST = SimpleSuite(
 )
 
 
+from datetime import timedelta
+
 LAZYTESTS = SimpleSuite(
     name = "lazytests",
     prologue = ["lazytests starting"],
@@ -278,28 +280,29 @@ LAZYTESTS = SimpleSuite(
             name = "lazy alloc",
             timeout = timedelta(seconds = 60),
             patterns = [
-                "running test lazy alloc",
-                "sbrk() failed",
-                "test lazy alloc: OK",
+                r"running test lazy alloc",
+                r"\s*sbrk\(\) failed\s*$",
+                r"test lazy alloc: OK",
             ],
         ),
         PatternTest(
             name = "lazy unmap",
             timeout = timedelta(seconds = 60),
             patterns = [
-                "running test lazy unmap",
-                "sbrk() failed",
-                "test lazy unmap: OK",
+                r"running test lazy unmap",
+                r"\s*sbrk\(\) failed\s*$",
+                r"test lazy unmap: OK",
             ],
         ),
         PatternTest(
             name = "out of memory",
             timeout = timedelta(seconds = 60),
             patterns = [
-                "running test out of memory",
-                "test out of memory: OK",
+                r"running test out of memory",
+                r"test out of memory: OK",
             ],
         ),
     ],
     epilogue = ["ALL TESTS PASSED"],
 )
+
