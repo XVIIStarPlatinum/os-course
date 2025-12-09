@@ -270,8 +270,6 @@ COWTEST = SimpleSuite(
 )
 
 
-from datetime import timedelta
-
 LAZYTESTS = SimpleSuite(
     name = "lazytests",
     prologue = ["lazytests starting"],
