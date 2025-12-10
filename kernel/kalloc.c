@@ -12,11 +12,45 @@
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
 
+struct run {
+  struct run *next;
+};
+
+struct {
+  struct spinlock lock;
+  struct run *freelist;
+  uint *refs;
+  void *pa_start;
+  void *pa_end;
+} kmem;
+
 void
 kinit()
 {
-  bd_init((char *) PGROUNDUP((uint64)end), (char *) PHYSTOP);
-} 
+  initlock(&kmem.lock, "kmem");
+  kmem.refs  = (uint*)end;
+  kmem.pa_end   = (void*)PGROUNDDOWN(PHYSTOP);
+  kmem.pa_start = (char*)end + (((char*)kmem.pa_end - (char*)end) / PGSIZE + 1) * sizeof(uint64);
+  kmem.pa_start = (void*)PGROUNDUP((uint64)kmem.pa_start);
+  for (
+    uint *it = kmem.refs;
+    (it - kmem.refs) < (kmem.pa_end - kmem.pa_start) / PGSIZE;
+    it++
+  ) {
+    *it = 1;
+    __sync_synchronize();
+  }
+  freerange(kmem.pa_start, kmem.pa_end);
+}
+
+void
+freerange(void *pa_start, void *pa_end)
+{
+  char *p;
+  p = (char*)PGROUNDUP((uint64)pa_start);
+  for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
+    kfree(p);
+}
 
 // Free the page of physical memory pointed at by pa,
 // which normally should have been returned by a
@@ -25,7 +59,43 @@ kinit()
 void
 kfree(void *pa)
 {
-    bd_free(pa);
+  struct run *r;
+
+  if(((uint64)pa % PGSIZE) || (void*)pa < kmem.pa_start || (void*)pa >= kmem.pa_end)
+    panic("kfree");
+
+  int res = __sync_sub_and_fetch(&kmem.refs[((char*)pa - (char*)kmem.pa_start) / PGSIZE], 1);
+  if (res) {
+    return;
+  }
+
+  // Fill with junk to catch dangling refs.
+  memset(pa, 1, PGSIZE);
+
+  r = (struct run*)pa;
+
+  acquire(&kmem.lock);
+  r->next = kmem.freelist;
+  kmem.freelist = r;
+  release(&kmem.lock);
+}
+
+void
+kincref(void *pa)
+{
+  __sync_add_and_fetch(&kmem.refs[((char*)pa - (char*)kmem.pa_start) / PGSIZE], 1);
+}
+
+void
+kdecref(void *pa)
+{
+  __sync_sub_and_fetch(&kmem.refs[((char*)pa - (char*)kmem.pa_start) / PGSIZE], 1);
+}
+
+uint
+kgetrefs(void *pa)
+{
+  return kmem.refs[((char*)pa - (char*)kmem.pa_start) / PGSIZE];
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -34,5 +104,21 @@ kfree(void *pa)
 void *
 kalloc(void)
 {
-  return bd_malloc(PGSIZE);
+  struct run *r;
+
+  acquire(&kmem.lock);
+  r = kmem.freelist;
+  if(r)
+    kmem.freelist = r->next;
+  release(&kmem.lock);
+
+  if (r) {
+    if (kmem.refs[((char*)r - (char*)kmem.pa_start) / PGSIZE]) {
+      panic("kalloc");
+    }
+    kincref(r);
+    memset((char*)r, 5, PGSIZE); // fill with junk
+  }
+
+  return (void*)r;
 }

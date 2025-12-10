@@ -64,6 +64,10 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+void            freerange(void *pa_start, void *pa_end);
+void            kincref(void *);
+void            kdecref(void *);
+uint            kgetrefs(void *);
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -86,7 +90,6 @@ void            printfinit(void);
 int             cpuid(void);
 void            exit(int);
 int             fork(void);
-int             growproc(int);
 void            proc_mapstacks(pagetable_t);
 pagetable_t     proc_pagetable(struct proc *);
 void            proc_freepagetable(pagetable_t, uint64);
@@ -178,6 +181,9 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+void            vmprint(pagetable_t pagetable);
+int             uvmcow(pagetable_t, uint64);
+int             uvmlazyalloc(pagetable_t pagetable, uint64 va);
 
 // plic.c
 void            plicinit(void);

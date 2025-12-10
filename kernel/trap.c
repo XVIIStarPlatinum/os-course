@@ -29,6 +29,14 @@ trapinithart(void)
   w_stvec((uint64)kernelvec);
 }
 
+static void
+kill_process(struct proc *p, char *cause, uint64 scause, uint64 stval, uint64 sepc)
+{
+  printf("usertrap(): %s scause 0x%lx pid=%d\n", cause, scause, p->pid);
+  printf("            sepc=0x%lx stval=0x%lx\n", sepc, stval);
+  setkilled(p);
+}
+
 //
 // handle an interrupt, exception, or system call from user space.
 // called from trampoline.S
@@ -37,6 +45,9 @@ void
 usertrap(void)
 {
   int which_dev = 0;
+  uint64 scause = r_scause();
+  uint64 stval = r_stval();
+  uint sepc = r_sepc();
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
@@ -48,9 +59,9 @@ usertrap(void)
   struct proc *p = myproc();
   
   // save user program counter.
-  p->trapframe->epc = r_sepc();
+  p->trapframe->epc = sepc;
   
-  if(r_scause() == 8){
+  if(scause == 8){
     // system call
 
     if(killed(p))
@@ -67,12 +78,30 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if (scause == LOAD_PAGE_FAULT) {
+    if(stval >= p->sz) {
+      kill_process(p, "Load page fault", scause, stval, sepc);
+    } else {
+      if(uvmlazyalloc(p->pagetable, stval)) {
+        kill_process(p, "Load page fault", scause, stval, sepc);
+      }
+    }
+  } else if (scause == AMO_PAGE_FAULT) {
+    if(stval >= p->sz){
+      kill_process(p, "Store/AMO page fault", scause, stval, sepc);
+    } else {
+      // First try COW, then lazy allocation
+      if(uvmcow(p->pagetable, stval) != 0) {
+        // Not a COW page, try lazy allocation
+        if(uvmlazyalloc(p->pagetable, stval)) {
+          kill_process(p, "Store/AMO page fault", scause, stval, sepc);
+        }
+      }
+    }
   } else {
-    printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());
-    setkilled(p);
+    kill_process(p, "unexpected", scause, stval, sepc);
   }
-
+    
   if(killed(p))
     exit(-1);
 
@@ -215,4 +244,3 @@ devintr()
     return 0;
   }
 }
-

@@ -13,3 +13,5 @@
 #define MAXPATH      128   // maximum file path name
 #define USERSTACK    1     // user stack pages
 
+#define LOAD_PAGE_FAULT 13 // page fault during load
+#define AMO_PAGE_FAULT  15 // page fault during store
